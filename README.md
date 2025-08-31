@@ -18,7 +18,7 @@
 
 项目主要贡献者：空白泡泡糖果（B站UP），硅灵造物科技（B站UP）
 
-音乐服务器提供者（为爱发电）：蔓延科技
+音乐服务器提供者（为爱发电）：一撒
 
 ### 💡注意事项
 
@@ -29,13 +29,6 @@
   - 收到音乐相关的需求时，只使用 MPC tool `self.music.play_song` 工具，同时禁止使用 `search_music` 功能。
 
 
-#### 2. 内置API调用报错怎么办？
-加入QQ群：826072986，把Mac地址发给“蔓延科技”申请权限，如下：
-```
-@蔓延科技 你好，有空帮忙加个权限，mac: 20-2B-20-7B-C8-47
-```
-
-
 #### 3. 暂不支持的开发板
 - ESP32C3芯片的开发板
 
@@ -43,6 +36,7 @@
 ### 项目改动范围
 
 #### 新增
+- main\boards\common\music.h
 - main\boards\common\esp32_music.cc
 - main\boards\common\esp32_music.h
 
