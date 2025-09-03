@@ -17,6 +17,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>  // 为isdigit函数
+#include <thread>   // 为线程ID比较
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -164,11 +165,11 @@ static std::string buildUrlWithParams(const std::string& base_url, const std::st
 Esp32Music::Esp32Music() : last_downloaded_data_(), current_music_url_(), current_song_name_(),
                          song_name_displayed_(false), current_lyric_url_(), lyrics_(), 
                          current_lyric_index_(-1), lyric_thread_(), is_lyric_running_(false),
-                         is_playing_(false), is_downloading_(false), 
+                         display_mode_(DISPLAY_MODE_LYRICS), is_playing_(false), is_downloading_(false), 
                          play_thread_(), download_thread_(), audio_buffer_(), buffer_mutex_(), 
                          buffer_cv_(), buffer_size_(0), mp3_decoder_(nullptr), mp3_frame_info_(), 
                          mp3_decoder_initialized_(false) {
-    ESP_LOGI(TAG, "Music player initialized");
+    ESP_LOGI(TAG, "Music player initialized with default spectrum display mode");
     InitializeMp3Decoder();
 }
 
@@ -374,7 +375,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
                 song_name_displayed_ = false;  // 重置歌名显示标志
                 StartStreaming(current_music_url_);
                 
-                // 处理歌词URL
+                // 处理歌词URL - 只有在歌词显示模式下才启动歌词
                 if (cJSON_IsString(lyric_url) && lyric_url->valuestring && strlen(lyric_url->valuestring) > 0) {
                     // 拼接完整的歌词下载URL，使用相同的URL构建逻辑
                     std::string lyric_path = lyric_url->valuestring;
@@ -388,21 +389,26 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
                         current_lyric_url_ = base_url + lyric_path;
                     }
                     
-                    ESP_LOGI(TAG, "Loading lyrics for: %s", song_name.c_str());
-                    
-                    // 启动歌词下载和显示
-                    if (is_lyric_running_) {
-                        is_lyric_running_ = false;
-                        if (lyric_thread_.joinable()) {
-                            lyric_thread_.join();
+                    // 根据显示模式决定是否启动歌词
+                    if (display_mode_ == DISPLAY_MODE_LYRICS) {
+                        ESP_LOGI(TAG, "Loading lyrics for: %s (lyrics display mode)", song_name.c_str());
+                        
+                        // 启动歌词下载和显示
+                        if (is_lyric_running_) {
+                            is_lyric_running_ = false;
+                            if (lyric_thread_.joinable()) {
+                                lyric_thread_.join();
+                            }
                         }
+                        
+                        is_lyric_running_ = true;
+                        current_lyric_index_ = -1;
+                        lyrics_.clear();
+                        
+                        lyric_thread_ = std::thread(&Esp32Music::LyricDisplayThread, this);
+                    } else {
+                        ESP_LOGI(TAG, "Lyric URL found but spectrum display mode is active, skipping lyrics");
                     }
-                    
-                    is_lyric_running_ = true;
-                    current_lyric_index_ = -1;
-                    lyrics_.clear();
-                    
-                    lyric_thread_ = std::thread(&Esp32Music::LyricDisplayThread, this);
                 } else {
                     ESP_LOGW(TAG, "No lyric URL found for this song");
                 }
@@ -426,61 +432,7 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
     return false;
 }
 
-bool Esp32Music::Play() {
-    if (is_playing_.load()) {  // 使用atomic的load()
-        ESP_LOGW(TAG, "Music is already playing");
-        return true;
-    }
-    
-    if (last_downloaded_data_.empty()) {
-        ESP_LOGE(TAG, "No music data to play");
-        return false;
-    }
-    
-    // 清理之前的播放线程
-    if (play_thread_.joinable()) {
-        play_thread_.join();
-    }
-    
-    // 实际应调用流式播放接口
-    return StartStreaming(current_music_url_);
-}
 
-bool Esp32Music::Stop() {
-    if (!is_playing_ && !is_downloading_) {
-        ESP_LOGW(TAG, "Music is not playing or downloading");
-        return true;
-    }
-    
-    ESP_LOGI(TAG, "Stopping music playback and download");
-    
-    // 停止下载和播放
-    is_downloading_ = false;
-    is_playing_ = false;
-    
-    // 重置采样率到原始值
-    ResetSampleRate();
-    
-    // 通知所有等待的线程
-    {
-        std::lock_guard<std::mutex> lock(buffer_mutex_);
-        buffer_cv_.notify_all();
-    }
-    
-    // 等待线程结束
-    if (download_thread_.joinable()) {
-        download_thread_.join();
-    }
-    if (play_thread_.joinable()) {
-        play_thread_.join();
-    }
-    
-    // 清空缓冲区
-    ClearAudioBuffer();
-    
-    ESP_LOGI(TAG, "Music stopped successfully");
-    return true;
-}
 
 std::string Esp32Music::GetDownloadResult() {
     return last_downloaded_data_;
@@ -534,6 +486,7 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     play_thread_ = std::thread(&Esp32Music::PlayAudioStream, this);
     
     ESP_LOGI(TAG, "Streaming threads started successfully");
+    
     return true;
 }
 
@@ -567,6 +520,58 @@ bool Esp32Music::StopStreaming() {
     {
         std::lock_guard<std::mutex> lock(buffer_mutex_);
         buffer_cv_.notify_all();
+    }
+    
+    // 等待线程结束（避免重复代码，让StopStreaming也能等待线程完全停止）
+    if (download_thread_.joinable()) {
+        download_thread_.join();
+        ESP_LOGI(TAG, "Download thread joined in StopStreaming");
+    }
+    
+    // 等待播放线程结束，使用更安全的方式
+    if (play_thread_.joinable()) {
+        // 先设置停止标志
+        is_playing_ = false;
+        
+        // 通知条件变量，确保线程能够退出
+        {
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            buffer_cv_.notify_all();
+        }
+        
+        // 使用超时机制等待线程结束，避免死锁
+        bool thread_finished = false;
+        int wait_count = 0;
+        const int max_wait = 100; // 最多等待1秒
+        
+        while (!thread_finished && wait_count < max_wait) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            wait_count++;
+            
+            // 检查线程是否仍然可join
+            if (!play_thread_.joinable()) {
+                thread_finished = true;
+                break;
+            }
+        }
+        
+        if (play_thread_.joinable()) {
+            if (wait_count >= max_wait) {
+                ESP_LOGW(TAG, "Play thread join timeout, detaching thread");
+                play_thread_.detach();
+            } else {
+                play_thread_.join();
+                ESP_LOGI(TAG, "Play thread joined in StopStreaming");
+            }
+        }
+    }
+    
+    // 在线程完全结束后，只在频谱模式下停止FFT显示
+    if (display && display_mode_ == DISPLAY_MODE_SPECTRUM) {
+        display->stopFft();
+        ESP_LOGI(TAG, "Stopped FFT display in StopStreaming (spectrum mode)");
+    } else if (display) {
+        ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop in StopStreaming");
     }
     
     ESP_LOGI(TAG, "Music streaming stop signal sent");
@@ -783,6 +788,16 @@ void Esp32Music::PlayAudioStream() {
                 ESP_LOGI(TAG, "Displaying song name: %s", formatted_song_name.c_str());
                 song_name_displayed_ = true;
             }
+
+            // 根据显示模式启动相应的显示功能
+            if (display) {
+                if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+                    display->start();
+                    ESP_LOGI(TAG, "Display start() called for spectrum visualization");
+                } else {
+                    ESP_LOGI(TAG, "Lyrics display mode active, FFT visualization disabled");
+                }
+            }
         }
         
         // 如果需要更多MP3数据，从缓冲区读取
@@ -934,6 +949,19 @@ void Esp32Music::PlayAudioStream() {
                 size_t pcm_size_bytes = final_sample_count * sizeof(int16_t);
                 packet.payload.resize(pcm_size_bytes);
                 memcpy(packet.payload.data(), final_pcm_data, pcm_size_bytes);
+
+                if (final_pcm_data_fft == nullptr) {
+                    final_pcm_data_fft = (int16_t*)heap_caps_malloc(
+                        final_sample_count * sizeof(int16_t),
+                        MALLOC_CAP_SPIRAM
+                    );
+                }
+                
+                memcpy(
+                    final_pcm_data_fft,
+                    final_pcm_data,
+                    final_sample_count * sizeof(int16_t)
+                );
                 
                 ESP_LOGD(TAG, "Sending %d PCM samples (%d bytes, rate=%d, channels=%d->1) to Application", 
                         final_sample_count, pcm_size_bytes, mp3_frame_info_.samprate, mp3_frame_info_.nChans);
@@ -967,22 +995,24 @@ void Esp32Music::PlayAudioStream() {
         heap_caps_free(mp3_input_buffer);
     }
     
-    // 播放结束时清空歌名显示
-    auto& board = Board::GetInstance();
-    auto display = board.GetDisplay();
-    if (display) {
-        display->SetMusicInfo("");  // 清空歌名显示
-        ESP_LOGI(TAG, "Cleared song name display on playback end");
-    }
-
-    // 重置采样率到原始值
-    ResetSampleRate();
-    
-    // 播放结束时保持音频输出启用状态，让Application管理
-    // 不在这里禁用音频输出，避免干扰其他音频功能
+    // 播放结束时进行基本清理，但不调用StopStreaming避免线程自我等待
     ESP_LOGI(TAG, "Audio stream playback finished, total played: %d bytes", total_played);
+    ESP_LOGI(TAG, "Performing basic cleanup from play thread");
     
+    // 停止播放标志
     is_playing_ = false;
+    
+    // 只在频谱显示模式下才停止FFT显示
+    if (display_mode_ == DISPLAY_MODE_SPECTRUM) {
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        if (display) {
+            display->stopFft();
+            ESP_LOGI(TAG, "Stopped FFT display from play thread (spectrum mode)");
+        }
+    } else {
+        ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop");
+    }
 }
 
 // 清空音频缓冲区
@@ -1396,3 +1426,13 @@ void Esp32Music::UpdateLyricDisplay(int64_t current_time_ms) {
 // 删除复杂的AddAuthHeaders方法，使用简单的静态函数
 
 // 删除复杂的认证验证和配置方法，使用简单的静态函数
+
+// 显示模式控制方法实现
+void Esp32Music::SetDisplayMode(DisplayMode mode) {
+    DisplayMode old_mode = display_mode_.load();
+    display_mode_ = mode;
+    
+    ESP_LOGI(TAG, "Display mode changed from %s to %s", 
+            (old_mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS",
+            (mode == DISPLAY_MODE_SPECTRUM) ? "SPECTRUM" : "LYRICS");
+}
