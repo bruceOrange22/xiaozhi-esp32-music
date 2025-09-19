@@ -235,8 +235,35 @@ int BoxAudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int BoxAudioCodec::Write(const int16_t* data, int samples) {
-    if (output_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+    if (!output_enabled_) {
+        return 0;
     }
+
+    int bytes = samples * sizeof(int16_t);
+    ESP_LOGD(TAG, "BoxAudioCodec::Write called: samples=%d bytes=%d output_rate=%d enabled=%d", samples, bytes, output_sample_rate_, output_enabled_);
+
+    // 在写入前做最小校验
+    if (!data || samples <= 0) {
+        ESP_LOGW(TAG, "Invalid write parameters: data=%p samples=%d", data, samples);
+        return 0;
+    }
+
+    esp_err_t ret = esp_codec_dev_write(output_dev_, (void*)data, bytes);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_codec_dev_write returned error: 0x%X (samples=%d bytes=%d)", ret, samples, bytes);
+
+        // 打印前 64 字节的 payload 进行诊断（以十六进制显示）
+        int show = std::min(bytes, 64);
+        std::string head;
+        char tmp[8];
+        const uint8_t* p = (const uint8_t*)data;
+        for (int i = 0; i < show; ++i) {
+            snprintf(tmp, sizeof(tmp), "%02X", p[i]);
+            head += tmp;
+            if (i != show - 1) head += ' ';
+        }
+        ESP_LOGD(TAG, "Write payload head (%d bytes): %s", show, head.c_str());
+    }
+
     return samples;
 }
