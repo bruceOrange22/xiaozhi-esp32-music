@@ -530,6 +530,15 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     
     // 清空缓冲区
     ClearAudioBuffer();
+    // 在开始播放前暂停显示层动画（例如 GIF），以避免渲染时阻塞导致音频卡顿
+    {
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        if (display) {
+            display->PauseAnimations();
+            ESP_LOGI(TAG, "Paused display animations before starting streaming");
+        }
+    }
     
     // 在创建线程前记录堆快照，帮助诊断 pthread 创建失败问题
     size_t free_before = esp_get_free_heap_size();
@@ -586,6 +595,15 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
         if (play_created && play_thread_.joinable()) {
             play_thread_.join();
         }
+        // 恢复显示动画（因为开始播放前可能已暂停）
+        {
+            auto& board = Board::GetInstance();
+            auto display = board.GetDisplay();
+            if (display) {
+                display->ResumeAnimations();
+                ESP_LOGI(TAG, "Resumed display animations after failed StartStreaming");
+            }
+        }
         return false;
     }
 
@@ -608,6 +626,15 @@ bool Esp32Music::StopStreaming() {
     // 检查是否有流式播放正在进行
     if (!is_playing_ && !is_downloading_) {
         ESP_LOGW(TAG, "No streaming in progress");
+        // 如果之前暂停了动画，恢复它
+        {
+            auto& board = Board::GetInstance();
+            auto display = board.GetDisplay();
+            if (display) {
+                display->ResumeAnimations();
+                ESP_LOGI(TAG, "Resumed display animations (no streaming in progress)");
+            }
+        }
         return true;
     }
     
@@ -679,6 +706,11 @@ bool Esp32Music::StopStreaming() {
         ESP_LOGI(TAG, "Stopped FFT display in StopStreaming (spectrum mode)");
     } else if (display) {
         ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop in StopStreaming");
+    }
+    // 恢复显示动画（如果之前被暂停）
+    if (display) {
+        display->ResumeAnimations();
+        ESP_LOGI(TAG, "Resumed display animations after stopping streaming");
     }
     
     ESP_LOGI(TAG, "Music streaming stop signal sent");
@@ -843,12 +875,30 @@ void Esp32Music::PlayAudioStream() {
     if (!codec || !codec->output_enabled()) {
         ESP_LOGE(TAG, "Audio codec not available or not enabled");
         is_playing_ = false;
+        // Ensure animations are resumed on early exit
+        {
+            auto& board = Board::GetInstance();
+            auto display = board.GetDisplay();
+            if (display) {
+                display->ResumeAnimations();
+                ESP_LOGI(TAG, "Resumed display animations (early exit: codec unavailable)");
+            }
+        }
         return;
     }
     
     if (!mp3_decoder_initialized_) {
         ESP_LOGE(TAG, "MP3 decoder not initialized");
         is_playing_ = false;
+        // Ensure animations are resumed on early exit
+        {
+            auto& board = Board::GetInstance();
+            auto display = board.GetDisplay();
+            if (display) {
+                display->ResumeAnimations();
+                ESP_LOGI(TAG, "Resumed display animations (early exit: decoder not initialized)");
+            }
+        }
         return;
     }
     
@@ -874,6 +924,15 @@ void Esp32Music::PlayAudioStream() {
     if (!mp3_input_buffer) {
         ESP_LOGE(TAG, "Failed to allocate MP3 input buffer");
         is_playing_ = false;
+        // Ensure animations are resumed on early exit
+        {
+            auto& board = Board::GetInstance();
+            auto display = board.GetDisplay();
+            if (display) {
+                display->ResumeAnimations();
+                ESP_LOGI(TAG, "Resumed display animations (early exit: MP3 input alloc failed)");
+            }
+        }
         return;
     }
     
@@ -1126,6 +1185,15 @@ void Esp32Music::PlayAudioStream() {
                             if (!codec->SetOutputSampleRate(mp3_frame_info_.samprate)) {
                                 ESP_LOGE(TAG, "Failed to set codec sample rate to %d Hz, stopping playback to avoid driver errors", mp3_frame_info_.samprate);
                                 is_playing_ = false;
+                                // Ensure animations are resumed before breaking out
+                                {
+                                    auto& board = Board::GetInstance();
+                                    auto display = board.GetDisplay();
+                                    if (display) {
+                                        display->ResumeAnimations();
+                                        ESP_LOGI(TAG, "Resumed display animations (codec sample rate set failed)");
+                                    }
+                                }
                                 // chunk.data 已在上游复制到 mp3_input_buffer 后被释放，
                                 // 此处不能再次访问或释放它（会导致编译错误/双重释放）。
                                 break;
@@ -1195,6 +1263,16 @@ void Esp32Music::PlayAudioStream() {
         }
     } else {
         ESP_LOGI(TAG, "Not in spectrum mode, skipping FFT stop");
+    }
+
+    // 确保在播放结束后恢复动画显示（覆盖之前 PauseAnimations 的调用）
+    {
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        if (display) {
+            display->ResumeAnimations();
+            ESP_LOGI(TAG, "Resumed display animations (playback finished cleanup)");
+        }
     }
 }
 

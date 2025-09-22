@@ -35,6 +35,9 @@ public:
     virtual void start() {}
     virtual void clearScreen() {}  // 清除FFT显示，默认为空实现
     virtual void stopFft() {}      // 停止FFT显示，默认为空实现
+    // 动画控制（可用于在音频播放时暂停 GIF/动画以避免卡顿）
+    virtual void PauseAnimations() {}
+    virtual void ResumeAnimations() {}
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

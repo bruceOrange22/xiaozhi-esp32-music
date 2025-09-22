@@ -31,9 +31,12 @@ public:
 
     // 重写SetMusicInfo方法
     virtual void SetMusicInfo(const char *song_name) override;
+    void ResumeAnimations();
+    void PauseAnimations(); 
 
 private:
-    void SetupGifContainer();
+    void
+    SetupGifContainer();
 
     lv_obj_t* emotion_gif_;  ///< GIF表情组件
 

@@ -130,6 +130,22 @@ void OttoEmojiDisplay::SetEmotion(const char* emotion) {
     ESP_LOGI(TAG, "未知表情'%s'，使用默认", emotion);
 }
 
+void OttoEmojiDisplay::PauseAnimations() {
+    DisplayLockGuard lock(this);
+    if (emotion_gif_) {
+        lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        ESP_LOGI(TAG, "Paused animations (GIF hidden)");
+    }
+}
+
+void OttoEmojiDisplay::ResumeAnimations() {
+    DisplayLockGuard lock(this);
+    if (emotion_gif_) {
+        lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        ESP_LOGI(TAG, "Resumed animations (GIF visible)");
+    }
+}
+
 void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
     if (chat_message_label_ == nullptr) {
