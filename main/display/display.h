@@ -28,6 +28,13 @@ public:
     virtual void SetMusicInfo(const char* song_name);
     virtual void SetIcon(const char* icon);
     virtual void SetPreviewImage(const lv_img_dsc_t* image);
+    // Try to set a preview image from raw image bytes in memory (e.g. JPEG/PNG).
+    // Returns true if the display implementation accepted the buffer (may still fail to render
+    // if LVGL lacks the decoder). Default implementation returns false.
+    virtual bool SetPreviewImageFromMemory(const uint8_t* data, size_t len) { return false; }
+    // Clear any preview image previously set via SetPreviewImageFromMemory.
+    // Default no-op.
+    virtual void ClearPreviewImage() {}
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
     virtual void UpdateStatusBar(bool update_all = false);

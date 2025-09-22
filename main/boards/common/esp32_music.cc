@@ -378,6 +378,82 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
 
                 // 诊断日志：打印最终构建的音乐 URL（便于复制到浏览器验证）
                 ESP_LOGI(TAG, "Built music URL: %s", current_music_url_.c_str());
+                // 如果返回了 cover_url，尝试异步下载并设置为预览图
+                cJSON* cover_url = cJSON_GetObjectItem(response_json, "cover_url");
+                if (cJSON_IsString(cover_url) && cover_url->valuestring && strlen(cover_url->valuestring) > 0) {
+                    std::string cover = cover_url->valuestring;
+                    ESP_LOGI(TAG, "Found cover URL: %s", cover.c_str());
+
+                    // 异步下载封面，避免阻塞主流程
+                    std::thread([cover](){
+                        auto& board = Board::GetInstance();
+                        auto network = board.GetNetwork();
+                        auto http = network->CreateHttp(0);
+                        if (!http) {
+                            ESP_LOGW(TAG, "Cover download: failed to create HTTP client");
+                            return;
+                        }
+                        http->SetHeader("User-Agent", "ESP32-Music-Player/1.0");
+                        if (!http->Open("GET", cover)) {
+                            ESP_LOGW(TAG, "Cover download: failed to open %s", cover.c_str());
+                            http->Close();
+                            return;
+                        }
+                        int status = http->GetStatusCode();
+                        if (status < 200 || status >= 300) {
+                            ESP_LOGW(TAG, "Cover download HTTP status %d for %s", status, cover.c_str());
+                            http->Close();
+                            return;
+                        }
+
+                        // 读取到 SPIRAM 缓冲
+                        size_t max_size = 64 * 1024; // 限制 64KB
+                        uint8_t* buf = (uint8_t*)heap_caps_malloc(max_size, MALLOC_CAP_SPIRAM);
+                        if (!buf) {
+                            ESP_LOGE(TAG, "Cover download: failed to allocate SPIRAM buffer");
+                            http->Close();
+                            return;
+                        }
+
+                        size_t total = 0;
+                        while (true) {
+                            int r = http->Read((char*)(buf + total), (int)(max_size - total));
+                            if (r > 0) {
+                                total += (size_t)r;
+                                if (total >= max_size) break;
+                            } else if (r == 0) {
+                                break;
+                            } else {
+                                ESP_LOGW(TAG, "Cover download: read error %d", r);
+                                break;
+                            }
+                        }
+                        http->Close();
+
+                        if (total == 0) {
+                            ESP_LOGW(TAG, "Cover download: no data received");
+                            heap_caps_free(buf);
+                            return;
+                        }
+
+                        // 通过 Display API 设置预览图（调用方负责释放 buf）
+                        auto& board2 = Board::GetInstance();
+                        auto display = board2.GetDisplay();
+                        if (display) {
+                            if (display->SetPreviewImageFromMemory(buf, total)) {
+                                ESP_LOGI(TAG, "Cover download: preview image set, size=%d bytes", (int)total);
+                                // display made an internal copy; we can free our downloaded buffer
+                                heap_caps_free(buf);
+                            } else {
+                                ESP_LOGW(TAG, "Cover download: display rejected image buffer");
+                                heap_caps_free(buf);
+                            }
+                        } else {
+                            ESP_LOGW(TAG, "Cover download: no display available");
+                            heap_caps_free(buf);
+                        }
+                    }).detach();
+                }
                 ESP_LOGI(TAG, "小智开源音乐固件qq交流群:826072986");
                 ESP_LOGI(TAG, "Starting streaming playback for: %s", song_name.c_str());
                 song_name_displayed_ = false;  // 重置歌名显示标志
@@ -1272,6 +1348,15 @@ void Esp32Music::PlayAudioStream() {
         if (display) {
             display->ResumeAnimations();
             ESP_LOGI(TAG, "Resumed display animations (playback finished cleanup)");
+        }
+    }
+    // 清理封面预览（如果有的话）
+    {
+        auto& board = Board::GetInstance();
+        auto display = board.GetDisplay();
+        if (display) {
+            display->ClearPreviewImage();
+            ESP_LOGI(TAG, "Cleared preview image from play cleanup");
         }
     }
 }

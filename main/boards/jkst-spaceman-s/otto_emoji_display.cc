@@ -1,6 +1,7 @@
 #include "otto_emoji_display.h"
 
 #include <esp_log.h>
+#include <esp_jpeg_dec.h>
 
 #include <algorithm>
 #include <cstring>
@@ -209,4 +210,174 @@ void OttoEmojiDisplay::SetMusicInfo(const char* song_name) {
         lv_label_set_text(chat_message_label_, "");
         lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
     }
+}
+
+bool OttoEmojiDisplay::SetPreviewImageFromMemory(const uint8_t* data, size_t len) {
+    DisplayLockGuard lock(this);
+    if (!data || len == 0) {
+        ESP_LOGW(TAG, "SetPreviewImageFromMemory: invalid data");
+        return false;
+    }
+    // Free previous preview if any
+    if (preview_img_obj_) {
+        lv_obj_del(preview_img_obj_);
+        preview_img_obj_ = nullptr;
+    }
+    if (owned_preview_buf_) {
+        heap_caps_free(owned_preview_buf_);
+        owned_preview_buf_ = nullptr;
+        owned_preview_len_ = 0;
+    }
+
+    // Copy data into SPIRAM so display owns it
+    uint8_t* copy = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM);
+    if (!copy) {
+        ESP_LOGE(TAG, "SetPreviewImageFromMemory: failed to allocate SPIRAM copy (%d bytes)", (int)len);
+        return false;
+    }
+    memcpy(copy, data, len);
+
+    // Hide GIF and create preview image
+    if (emotion_gif_) lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *cover = lv_img_create(content_);
+    if (!cover) {
+        ESP_LOGE(TAG, "SetPreviewImageFromMemory: failed to create lv_img");
+        heap_caps_free(copy);
+        if (emotion_gif_) lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        return false;
+    }
+
+    // Try to decode JPEG into RGB565 using esp_jpeg_dec. This is more reliable than
+    // passing raw JPEG bytes to LVGL, which can fail on some ROM decoders.
+    bool decoded = false;
+    jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
+    config.output_type = JPEG_PIXEL_FORMAT_RGB565_LE;
+    config.rotate = JPEG_ROTATE_0D;
+
+    jpeg_dec_handle_t jpeg_dec = NULL;
+    jpeg_error_t jret = jpeg_dec_open(&config, &jpeg_dec);
+    if (jret == JPEG_ERR_OK && jpeg_dec != NULL) {
+        jpeg_dec_io_t* jpeg_io = (jpeg_dec_io_t*)heap_caps_malloc(sizeof(jpeg_dec_io_t), MALLOC_CAP_SPIRAM);
+        jpeg_dec_header_info_t* jpeg_out = (jpeg_dec_header_info_t*)heap_caps_aligned_alloc(16, sizeof(jpeg_dec_header_info_t), MALLOC_CAP_SPIRAM);
+        if (jpeg_io && jpeg_out) {
+            memset(jpeg_io, 0, sizeof(jpeg_dec_io_t));
+            memset(jpeg_out, 0, sizeof(jpeg_dec_header_info_t));
+            jpeg_io->inbuf = copy;
+            jpeg_io->inbuf_len = (int)len;
+            jpeg_error_t ret = jpeg_dec_parse_header(jpeg_dec, jpeg_io, jpeg_out);
+            if (ret >= 0) {
+                int w = jpeg_out->width;
+                int h = jpeg_out->height;
+                size_t out_len = (size_t)w * (size_t)h * 2;
+                uint8_t* outbuf = (uint8_t*)heap_caps_malloc(out_len, MALLOC_CAP_SPIRAM);
+                if (outbuf) {
+                    jpeg_io->outbuf = outbuf;
+                    int inbuf_consumed = jpeg_io->inbuf_len - jpeg_io->inbuf_remain;
+                    jpeg_io->inbuf = copy + inbuf_consumed;
+                    jpeg_io->inbuf_len = jpeg_io->inbuf_remain;
+                    ret = jpeg_dec_process(jpeg_dec, jpeg_io);
+                    if (ret == JPEG_ERR_OK) {
+                        // Build lv_img_dsc_t for the decoded RGB565 buffer
+                        lv_img_dsc_t* dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_8BIT);
+                        if (dsc) {
+                            memset(dsc, 0, sizeof(lv_img_dsc_t));
+                            dsc->header.w = w;
+                            dsc->header.h = h;
+                            dsc->header.cf = LV_COLOR_FORMAT_RGB565;
+                            dsc->header.stride = w * 2;
+                            dsc->header.flags = LV_IMAGE_FLAGS_ALLOCATED | LV_IMAGE_FLAGS_MODIFIABLE;
+                            dsc->header.magic = LV_IMAGE_HEADER_MAGIC;
+                            dsc->data_size = out_len;
+                            dsc->data = outbuf;
+
+                            // set as image source and add cleanup callback
+                            lv_image_set_src(cover, dsc);
+                            lv_obj_add_event_cb(cover, [](lv_event_t* e) {
+                                lv_img_dsc_t* d = (lv_img_dsc_t*)lv_event_get_user_data(e);
+                                if (d) {
+                                    if (d->data) heap_caps_free((void*)d->data);
+                                    heap_caps_free(d);
+                                }
+                            }, LV_EVENT_DELETE, (void*)dsc);
+
+                            // Apply debug styling so we can see the area on screen
+                            lv_obj_set_size(cover, (int)(LV_HOR_RES * 0.9), (int)(LV_HOR_RES * 0.9));
+                            lv_obj_set_style_border_width(cover, 3, 0);
+                            lv_obj_set_style_border_color(cover, lv_color_hex(0xFF0000), 0);
+                            lv_obj_set_style_bg_opa(cover, LV_OPA_30, 0);
+                            lv_obj_set_style_bg_color(cover, lv_color_hex(0x000000), 0);
+                            lv_obj_center(cover);
+                            lv_obj_move_foreground(cover);
+
+                            // store ownership of the decoded buffer via the descriptor's data (event cb will free it)
+                            owned_preview_buf_ = nullptr; // ownership moved into lv_img_dsc_t
+                            owned_preview_len_ = 0;
+                            preview_img_obj_ = cover;
+
+                            ESP_LOGI(TAG, "Decoded JPEG to RGB565 and set preview: %dx%d, %d bytes", w, h, (int)out_len);
+                            decoded = true;
+                        } else {
+                            // couldn't allocate descriptor, free outbuf
+                            heap_caps_free(outbuf);
+                        }
+                    } else {
+                        ESP_LOGW(TAG, "jpeg_dec_process failed: %d", ret);
+                        heap_caps_free(outbuf);
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Failed to allocate outbuf for JPEG decode (%d bytes)", (int)out_len);
+                }
+            } else {
+                ESP_LOGW(TAG, "jpeg_dec_parse_header failed: %d", ret);
+            }
+        }
+        if (jpeg_io) heap_caps_free(jpeg_io);
+        if (jpeg_out) heap_caps_free(jpeg_out);
+        jpeg_dec_close(jpeg_dec);
+    }
+
+    if (!decoded) {
+        // Fallback: use raw JPEG buffer as LVGL source (may still work on some devices)
+        lv_img_set_src(cover, (const void*)copy);
+        // Apply debug styling
+        lv_obj_set_size(cover, (int)(LV_HOR_RES * 0.9), (int)(LV_HOR_RES * 0.9));
+        lv_obj_set_style_border_width(cover, 3, 0);
+        lv_obj_set_style_border_color(cover, lv_color_hex(0xFF0000), 0);
+        lv_obj_set_style_bg_opa(cover, LV_OPA_30, 0);
+        lv_obj_set_style_bg_color(cover, lv_color_hex(0x000000), 0);
+        lv_obj_center(cover);
+        lv_obj_move_foreground(cover);
+
+        // Store ownership of raw JPEG buffer so we can free it later
+        owned_preview_buf_ = copy;
+        owned_preview_len_ = len;
+        preview_img_obj_ = cover;
+
+        ESP_LOGI(TAG, "Set preview image from memory (owned raw JPEG), len=%d bytes", (int)len);
+        return true;
+    }
+
+    // If decoded path succeeded, free the original JPEG copy as ownership moved to decoded buffer
+    heap_caps_free(copy);
+    ESP_LOGI(TAG, "Set preview image from memory (decoded)");
+    return true;
+}
+
+void OttoEmojiDisplay::ClearPreviewImage() {
+    DisplayLockGuard lock(this);
+    if (preview_img_obj_) {
+        lv_obj_del(preview_img_obj_);
+        preview_img_obj_ = nullptr;
+    }
+    if (owned_preview_buf_) {
+        heap_caps_free(owned_preview_buf_);
+        owned_preview_buf_ = nullptr;
+        owned_preview_len_ = 0;
+    }
+    // Restore GIF visibility
+    if (emotion_gif_) {
+        lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+    }
+    ESP_LOGI(TAG, "Cleared preview image and restored GIF");
 }

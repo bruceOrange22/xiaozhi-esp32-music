@@ -32,13 +32,18 @@ public:
     // 重写SetMusicInfo方法
     virtual void SetMusicInfo(const char *song_name) override;
     void ResumeAnimations();
-    void PauseAnimations(); 
+    void PauseAnimations();
+    bool SetPreviewImageFromMemory(const uint8_t *data, size_t len);
+    void ClearPreviewImage();
 
 private:
-    void
-    SetupGifContainer();
+    void SetupGifContainer();
 
     lv_obj_t* emotion_gif_;  ///< GIF表情组件
+    // Owned preview image data and object
+    uint8_t* owned_preview_buf_ = nullptr;
+    size_t owned_preview_len_ = 0;
+    lv_obj_t* preview_img_obj_ = nullptr;
 
     // 表情映射
     struct EmotionMap {
