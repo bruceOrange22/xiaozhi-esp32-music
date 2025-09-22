@@ -170,6 +170,8 @@ void OttoEmojiDisplay::SetIcon(const char* icon) {
     }
 }
 void OttoEmojiDisplay::SetMusicInfo(const char* song_name) {
+    return;
+
     if (!song_name) {
         return;
     }
