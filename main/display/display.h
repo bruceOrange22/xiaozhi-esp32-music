@@ -35,6 +35,9 @@ public:
     // Clear any preview image previously set via SetPreviewImageFromMemory.
     // Default no-op.
     virtual void ClearPreviewImage() {}
+    // Configure preview image scaling percentages (decoded width%, decoded height%, fallback width%)
+    // Default implementation is a no-op so callers don't need RTTI.
+    virtual void SetPreviewScaling(int decoded_width_pct, int decoded_height_pct, int fallback_width_pct) {}
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
     virtual void UpdateStatusBar(bool update_all = false);

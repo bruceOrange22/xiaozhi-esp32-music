@@ -35,6 +35,13 @@ public:
     void PauseAnimations();
     bool SetPreviewImageFromMemory(const uint8_t *data, size_t len);
     void ClearPreviewImage();
+    /**
+     * @brief Configure preview image scaling percentages.
+     * @param decoded_width_pct Width percentage of screen for decoded images (1-100)
+     * @param decoded_height_pct Height percentage of screen for decoded images (1-100)
+     * @param fallback_width_pct Width percentage of screen for fallback raw-JPEG square (1-100)
+     */
+    void SetPreviewScaling(int decoded_width_pct, int decoded_height_pct, int fallback_width_pct);
 
 private:
     void SetupGifContainer();
@@ -52,4 +59,8 @@ private:
     };
 
     static const EmotionMap emotion_maps_[];
+    // Preview scaling percentages (defaults: decoded 70% x 50%, fallback 90% width)
+    int preview_decoded_width_pct_ = 70;
+    int preview_decoded_height_pct_ = 50;
+    int preview_fallback_width_pct_ = 90;
 };

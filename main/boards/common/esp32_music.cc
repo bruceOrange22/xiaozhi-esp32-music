@@ -5,6 +5,8 @@
 #include "application.h"
 #include "protocols/protocol.h"
 #include "display/display.h"
+// Include board-specific display implementation for runtime casting
+#include "boards/jkst-spaceman-s/otto_emoji_display.h"
 
 #include <esp_log.h>
 #include <esp_heap_caps.h>
@@ -440,6 +442,8 @@ bool Esp32Music::Download(const std::string& song_name, const std::string& artis
                         auto& board2 = Board::GetInstance();
                         auto display = board2.GetDisplay();
                         if (display) {
+                            // Request larger preview scaling for testing (Display::SetPreviewScaling is a no-op by default)
+                            display->SetPreviewScaling(85, 70, 95);
                             if (display->SetPreviewImageFromMemory(buf, total)) {
                                 ESP_LOGI(TAG, "Cover download: preview image set, size=%d bytes", (int)total);
                                 // display made an internal copy; we can free our downloaded buffer
@@ -788,7 +792,23 @@ bool Esp32Music::StopStreaming() {
         display->ResumeAnimations();
         ESP_LOGI(TAG, "Resumed display animations after stopping streaming");
     }
-    
+    // Ensure lyric thread is stopped and lyrics cleared to avoid residual text
+    if (is_lyric_running_) {
+        ESP_LOGI(TAG, "Stopping lyric thread from StopStreaming");
+        is_lyric_running_ = false;
+        if (lyric_thread_.joinable()) {
+            lyric_thread_.join();
+            ESP_LOGI(TAG, "Lyric thread joined in StopStreaming");
+        }
+    }
+
+    // Explicitly clear/hide lyric display and any preview image to avoid leftovers
+    if (display) {
+        // Use nullptr to indicate hiding lyrics in SetChatMessage
+        display->SetChatMessage("lyric", nullptr);
+        display->ClearPreviewImage();
+        ESP_LOGI(TAG, "Cleared lyric and preview in StopStreaming cleanup");
+    }
     ESP_LOGI(TAG, "Music streaming stop signal sent");
     return true;
 }
@@ -1350,7 +1370,17 @@ void Esp32Music::PlayAudioStream() {
             ESP_LOGI(TAG, "Resumed display animations (playback finished cleanup)");
         }
     }
-    // 清理封面预览（如果有的话）
+    // 停止并等待歌词线程结束，防止其在 Cleanup 后再次更新 UI
+    if (is_lyric_running_) {
+        ESP_LOGI(TAG, "Stopping lyric thread from play cleanup");
+        is_lyric_running_ = false;
+        if (lyric_thread_.joinable()) {
+            lyric_thread_.join();
+            ESP_LOGI(TAG, "Lyric thread joined in play cleanup");
+        }
+    }
+
+    // 清理封面预览（如果有的话）并隐藏歌词标签
     {
         auto& board = Board::GetInstance();
         auto display = board.GetDisplay();

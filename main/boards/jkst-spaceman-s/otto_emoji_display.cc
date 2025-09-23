@@ -153,13 +153,23 @@ void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
         return;
     }
 
-    if (content == nullptr || strlen(content) == 0) {
+    // If content==nullptr, treat as explicit hide request.
+    if (content == nullptr) {
         lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+        ESP_LOGI(TAG, "设置聊天消息 [%s]: <null> (hiding)", role);
         return;
     }
 
+    // If content is an empty string, ignore the update to avoid flicker/temporary disappearance
+    // (lyrics downloader or timing races may send empty updates). Keep the current text visible.
+    if (strlen(content) == 0) {
+        ESP_LOGI(TAG, "设置聊天消息 [%s]: <empty> (ignored)", role);
+        return;
+    }
+
+    // Normal update: set text and ensure visible.
     lv_label_set_text(chat_message_label_, content);
-    // lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
 }
@@ -187,7 +197,7 @@ void OttoEmojiDisplay::SetIcon(const char* icon) {
     }
 }
 void OttoEmojiDisplay::SetMusicInfo(const char* song_name) {
-    return;
+    // return;
 
     if (!song_name) {
         return;
@@ -239,6 +249,11 @@ bool OttoEmojiDisplay::SetPreviewImageFromMemory(const uint8_t* data, size_t len
 
     // Hide GIF and create preview image
     if (emotion_gif_) lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+    // Also hide the chat/lyrics label while a preview is shown so it doesn't overlap or
+    // conflict with the preview image across different themes.
+    if (chat_message_label_) {
+        lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    }
 
     lv_obj_t *cover = lv_img_create(content_);
     if (!cover) {
@@ -301,13 +316,20 @@ bool OttoEmojiDisplay::SetPreviewImageFromMemory(const uint8_t* data, size_t len
                                 }
                             }, LV_EVENT_DELETE, (void*)dsc);
 
-                            // Apply debug styling so we can see the area on screen
-                            lv_obj_set_size(cover, (int)(LV_HOR_RES * 0.9), (int)(LV_HOR_RES * 0.9));
-                            lv_obj_set_style_border_width(cover, 3, 0);
-                            lv_obj_set_style_border_color(cover, lv_color_hex(0xFF0000), 0);
-                            lv_obj_set_style_bg_opa(cover, LV_OPA_30, 0);
-                            lv_obj_set_style_bg_color(cover, lv_color_hex(0x000000), 0);
+                            // Scale decoded image to fit within 70% width x 50% height while preserving aspect ratio
+                            // Use configurable preview scaling percentages
+                            lv_coord_t max_width = LV_HOR_RES * preview_decoded_width_pct_ / 100;
+                            lv_coord_t max_height = LV_VER_RES * preview_decoded_height_pct_ / 100;
+                            lv_coord_t zoom_w = (max_width * 256) / w;
+                            lv_coord_t zoom_h = (max_height * 256) / h;
+                            lv_coord_t zoom = (zoom_w < zoom_h) ? zoom_w : zoom_h;
+                            if (zoom > 256) zoom = 256; // do not upscale
+                            if (zoom <= 0) zoom = 256;
+                            lv_img_set_zoom(cover, zoom);
                             lv_obj_center(cover);
+                            // Shift preview image slightly upward so the bottom can show one line of lyrics
+                            lv_coord_t y_shift = LV_VER_RES * 10 / 100; // move up by 10% of screen height
+                            lv_obj_align(cover, LV_ALIGN_CENTER, 0, -((int)y_shift));
                             lv_obj_move_foreground(cover);
 
                             // store ownership of the decoded buffer via the descriptor's data (event cb will free it)
@@ -340,14 +362,14 @@ bool OttoEmojiDisplay::SetPreviewImageFromMemory(const uint8_t* data, size_t len
     if (!decoded) {
         // Fallback: use raw JPEG buffer as LVGL source (may still work on some devices)
         lv_img_set_src(cover, (const void*)copy);
-        // Apply debug styling
-        lv_obj_set_size(cover, (int)(LV_HOR_RES * 0.9), (int)(LV_HOR_RES * 0.9));
-        lv_obj_set_style_border_width(cover, 3, 0);
-        lv_obj_set_style_border_color(cover, lv_color_hex(0xFF0000), 0);
-        lv_obj_set_style_bg_opa(cover, LV_OPA_30, 0);
-        lv_obj_set_style_bg_color(cover, lv_color_hex(0x000000), 0);
-        lv_obj_center(cover);
-        lv_obj_move_foreground(cover);
+    // Fit fallback image into a square with configurable percentage of screen width
+    lv_coord_t max_w = LV_HOR_RES * preview_fallback_width_pct_ / 100;
+    lv_obj_set_size(cover, (int)max_w, (int)max_w);
+    lv_obj_center(cover);
+    // Shift fallback preview slightly upward to make room for a lyric line at the bottom
+    lv_coord_t y_shift_fb = LV_VER_RES * 10 / 100;
+    lv_obj_align(cover, LV_ALIGN_CENTER, 0, -((int)y_shift_fb));
+    lv_obj_move_foreground(cover);
 
         // Store ownership of raw JPEG buffer so we can free it later
         owned_preview_buf_ = copy;
@@ -362,6 +384,22 @@ bool OttoEmojiDisplay::SetPreviewImageFromMemory(const uint8_t* data, size_t len
     heap_caps_free(copy);
     ESP_LOGI(TAG, "Set preview image from memory (decoded)");
     return true;
+}
+
+void OttoEmojiDisplay::SetPreviewScaling(int decoded_width_pct, int decoded_height_pct, int fallback_width_pct) {
+    // Clamp values to [1,100]
+    if (decoded_width_pct < 1) decoded_width_pct = 1;
+    if (decoded_width_pct > 100) decoded_width_pct = 100;
+    if (decoded_height_pct < 1) decoded_height_pct = 1;
+    if (decoded_height_pct > 100) decoded_height_pct = 100;
+    if (fallback_width_pct < 1) fallback_width_pct = 1;
+    if (fallback_width_pct > 100) fallback_width_pct = 100;
+
+    preview_decoded_width_pct_ = decoded_width_pct;
+    preview_decoded_height_pct_ = decoded_height_pct;
+    preview_fallback_width_pct_ = fallback_width_pct;
+
+    ESP_LOGI(TAG, "SetPreviewScaling: decoded %d%%x%d%%, fallback %d%%", decoded_width_pct, decoded_height_pct, fallback_width_pct);
 }
 
 void OttoEmojiDisplay::ClearPreviewImage() {
@@ -379,5 +417,10 @@ void OttoEmojiDisplay::ClearPreviewImage() {
     if (emotion_gif_) {
         lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
     }
+        if (chat_message_label_) {
+            // Clear text and hide to be robust against races where lyric thread may write back
+            lv_label_set_text(chat_message_label_, "");
+            lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+        }
     ESP_LOGI(TAG, "Cleared preview image and restored GIF");
 }
