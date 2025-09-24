@@ -28,16 +28,6 @@ public:
     virtual void SetMusicInfo(const char* song_name);
     virtual void SetIcon(const char* icon);
     virtual void SetPreviewImage(const lv_img_dsc_t* image);
-    // Try to set a preview image from raw image bytes in memory (e.g. JPEG/PNG).
-    // Returns true if the display implementation accepted the buffer (may still fail to render
-    // if LVGL lacks the decoder). Default implementation returns false.
-    virtual bool SetPreviewImageFromMemory(const uint8_t* data, size_t len) { return false; }
-    // Clear any preview image previously set via SetPreviewImageFromMemory.
-    // Default no-op.
-    virtual void ClearPreviewImage() {}
-    // Configure preview image scaling percentages (decoded width%, decoded height%, fallback width%)
-    // Default implementation is a no-op so callers don't need RTTI.
-    virtual void SetPreviewScaling(int decoded_width_pct, int decoded_height_pct, int fallback_width_pct) {}
     virtual void SetTheme(const std::string& theme_name);
     virtual std::string GetTheme() { return current_theme_name_; }
     virtual void UpdateStatusBar(bool update_all = false);
@@ -45,9 +35,6 @@ public:
     virtual void start() {}
     virtual void clearScreen() {}  // 清除FFT显示，默认为空实现
     virtual void stopFft() {}      // 停止FFT显示，默认为空实现
-    // 动画控制（可用于在音频播放时暂停 GIF/动画以避免卡顿）
-    virtual void PauseAnimations() {}
-    virtual void ResumeAnimations() {}
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

@@ -407,16 +407,15 @@
          return;
      }
  
-     // Start a task to receive data with stack size (enforce safe minimum)
-     esp_pthread_cfg_t orig_cfg = esp_pthread_get_default_config();
-     esp_pthread_cfg_t cfg = orig_cfg;
+     // Start a task to receive data with stack size
+     esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
      cfg.thread_name = "tool_call";
-     cfg.stack_size = std::max((size_t)stack_size, (size_t)8192);
+     cfg.stack_size = stack_size;
      cfg.prio = 1;
      esp_pthread_set_cfg(&cfg);
-
+ 
      // Use a thread to call the tool to avoid blocking the main thread
-     tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments), orig_cfg]() {
+     tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments)]() {
          try {
              ReplyResult(id, (*tool_iter)->Call(arguments));
          } catch (const std::exception& e) {
@@ -424,7 +423,5 @@
              ReplyError(id, e.what());
          }
      });
-     // Detach and restore original pthread config to avoid affecting other threads
      tool_call_thread_.detach();
-     esp_pthread_set_cfg(&orig_cfg);
  }
