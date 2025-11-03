@@ -691,6 +691,15 @@ bool Esp32Music::StartStreaming(const std::string& music_url) {
     esp_pthread_set_cfg(&orig_cfg);
     
     ESP_LOGI(TAG, "Streaming threads started successfully");
+    // 通知板子 LED：流式播放已开始（由 LED 实现决定是否启用律动/灯效）
+    {
+        auto& board = Board::GetInstance();
+        Led* led = board.GetLed();
+        if (led) {
+            led->OnStreamingStarted();
+            ESP_LOGI(TAG, "Notified LED OnStreamingStarted");
+        }
+    }
     
     return true;
 }
@@ -808,6 +817,15 @@ bool Esp32Music::StopStreaming() {
         display->SetChatMessage("lyric", nullptr);
         display->ClearPreviewImage();
         ESP_LOGI(TAG, "Cleared lyric and preview in StopStreaming cleanup");
+    }
+    // 通知板子 LED：流式播放已停止（由 LED 实现决定是否关闭律动/灯效）
+    {
+        auto& board = Board::GetInstance();
+        Led* led = board.GetLed();
+        if (led) {
+            led->OnStreamingStopped();
+            ESP_LOGI(TAG, "Notified LED OnStreamingStopped");
+        }
     }
     ESP_LOGI(TAG, "Music streaming stop signal sent");
     return true;
@@ -1387,6 +1405,15 @@ void Esp32Music::PlayAudioStream() {
         if (display) {
             display->ClearPreviewImage();
             ESP_LOGI(TAG, "Cleared preview image from play cleanup");
+        }
+    }
+    // 播放线程结束时通知板子 LED 停止播放相关灯效
+    {
+        auto& board = Board::GetInstance();
+        Led* led = board.GetLed();
+        if (led) {
+            led->OnStreamingStopped();
+            ESP_LOGI(TAG, "Notified LED OnStreamingStopped after playback finished");
         }
     }
 }

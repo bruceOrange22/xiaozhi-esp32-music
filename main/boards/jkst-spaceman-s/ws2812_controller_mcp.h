@@ -32,6 +32,8 @@ namespace ws2812 {
         TaskHandle_t effect_task_handle_ = nullptr;
         volatile Ws2812EffectType effect_type_ = EFFECT_OFF;
         volatile bool running_ = false;
+    // 标识当前是否处于流式音乐播放（由 Esp32Music 通知）
+    volatile bool streaming_active_ = false;
 
         uint8_t color_r_ = 0;
         uint8_t color_g_ = 255;
@@ -77,8 +79,10 @@ namespace ws2812 {
         void StartVolumeEffect();
         void StartColorVolumeEffect();
         void ClearLED();
-
-        void OnStateChanged() override;
+    void OnStateChanged() override;
+    // Called when streaming starts/stops
+    void OnStreamingStarted() override;
+    void OnStreamingStopped() override;
         };
 
 } // namespace ws2812

@@ -1,0 +1,132 @@
+
+I (29790) Application: STATE: listening
+I (29840) OttoEmojiDisplay: 设置表情: neutral
+I (29890) AFE: AFE Version: (1MIC_V250121)
+I (29890) AFE: Input PCM Config: total 1 channels(1 microphone, 0 playback), sample rate:16000
+I (29950) AFE: AFE Pipeline: [input] -> |VAD(WebRTC)| -> [output]
+I (29960) AfeAudioProcessor: Audio communication task started, feed size: 512 fetch size: 512
+I (35010) Application: >> 播放稻香。
+I (35010) Application: STATE: speaking
+I (35030) Ws2812ControllerMCP: 设置音量律动效果
+I (35030) Ws2812ControllerMCP: 已随机更换音量律动的灯带配色
+I (35040) OttoEmojiDisplay: 设置聊天消息 [user]: 播放稻香。
+I (35590) OttoEmojiDisplay: 设置表情: happy
+I (35720) Application: << 好呀，来咯～
+I (35730) OttoEmojiDisplay: 设置聊天消息 [assistant]: 好呀，来咯～
+I (35940) AudioCodec: Set output enable to true
+I (37560) Application: << % self.music.play_song...
+I (37570) Esp32Music: 小智开源音乐固件qq交流群:826072986
+I (37570) Esp32Music: Starting to get music details for: 稻香
+I (37570) Esp32Music: Request URL: http://www.xiaozhishop.xyz:5005/stream_pcm?song=%E7%A8%BB%E9%A6%99&artist=
+I (37580) Esp32Music: Added auth headers - MAC: 50:78:7d:15:56:98, ChipID: 
+50787d155698, Timestamp: ld
+I (37610) OttoEmojiDisplay: 设置聊天消息 [assistant]: % self.music.play_song...
+I (37670) Esp32Music: HTTP GET Status = 200, content_length = 299
+I (37670) Esp32Music: Artist: 周杰伦
+I (37670) Esp32Music: Title: 稻香
+I (37670) Esp32Music: Audio URL path: /music_cache/3825d807eee6b2c063f6238411540c76.mp3
+I (37680) Esp32Music: Built music URL: http://www.xiaozhishop.xyz:5005/music_cache/3825d807eee6b2c063f6238411540c76.mp3
+I (37690) Esp32Music: Found cover URL: http://y.gtimg.cn/music/photo_new/T002R300x300M000002Neh8l0uciQZ.jpg
+I (37700) Esp32Music: 小智开源音乐固件qq交流群:826072986
+I (37710) Esp32Music: Starting streaming playback for: 稻香
+I (37710) Esp32Music: Audio buffer cleared
+I (37710) OttoEmojiDisplay: Paused animations (GIF hidden)
+I (37720) Esp32Music: Paused display animations before starting streaming  
+I (37730) Esp32Music: Creating streaming threads - free_heap=7455552, min_free_heap=7436492
+I (37740) Esp32Music: Added auth headers - MAC: 50:78:7d:15:56:98, ChipID: 
+50787d155698, Timestamp: ld
+I (37740) Esp32Music: Starting audio stream playback
+I (37750) Esp32Music: Streaming threads started successfully
+I (37750) Ws2812ControllerMCP: 设置音量律动效果
+I (37760) Ws2812ControllerMCP: 已随机更换音量律动的灯带配色
+I (37760) Ws2812ControllerMCP: OnStreamingStarted: streaming_active_=true  
+I (37770) Esp32Music: Notified LED OnStreamingStarted
+I (37780) Esp32Music: Built lyric URL: http://www.xiaozhishop.xyz:5005/music_cache/3825d807eee6b2c063f6238411540c76.lrc
+I (37790) Esp32Music: Loading lyrics for: 稻香 (lyrics display mode)       
+I (37790) Esp32Music: Attempting to create lyric thread - free_heap=7446728, min_free_heap=7435156
+I (37800) Esp32Music: Lyric display thread started
+I (37800) Esp32Music: Started downloading audio stream, status: 206        
+I (37810) Esp32Music: Downloading lyrics from: http://www.xiaozhishop.xyz:5005/music_cache/3825d807eee6b2c063f6238411540c76.lrc
+I (37810) Esp32Music: Detected MP3 file with ID3 tag
+I (37830) Esp32Music: Added auth headers - MAC: 50:78:7d:15:56:98, ChipID: 
+50787d155698, Timestamp: ld
+I (37800) MCP: Music details result: {"artist":"\u5468\u6770\u4f26","audio_url":"/music_cache/3825d807eee6b2c063f6238411540c76.mp3","cover_url":"http://y.gtimg.cn/music/photo_new/T002R300x300M000002Neh8l0uciQZ.jpg","duration":223,"from_cache":true,"lyric_url":"/music_cache/3825d807eee6b2c063f6238411540c76.lrc","title":"\u7a3b\u9999"}
+
+E (37900) EspTcp: TCP receive failed: -1
+I (37900) Esp32Music: Parsed 48 lyric lines
+I (37900) Esp32Music: Lyrics downloaded, forcing initial lyric update at ldms
+I (37900) OttoEmojiDisplay: 设置聊天消息 [lyric]: 稻香 - 周杰伦 (Jay Chou)
+I (37950) Esp32Music: 小智开源音乐固件qq交流群:826072986
+I (37950) Esp32Music: Starting playback with buffer size: 33120
+I (37950) Esp32Music: Device is in speaking state, switching to listening state for music playback
+I (37960) Application: Abort speaking
+I (38020) Application: STATE: listening
+I (38020) Ws2812ControllerMCP: WS2812灯效任务开始运行
+I (38070) OttoEmojiDisplay: 设置表情: neutral
+I (38170) OttoEmojiDisplay: SetPreviewScaling: decoded 85%x70%, fallback 95%
+I (38210) OttoEmojiDisplay: Decoded JPEG to RGB565 and set preview: 300x300, 180000 bytes
+I (38210) OttoEmojiDisplay: Set preview image from memory (decoded)        
+I (38220) Esp32Music: Cover download: preview image set, size=34337 bytes
+I (38260) Esp32Music: Device is in listening state, switching to idle state for music playback
+I (38260) wifi:Set ps type: 1, coexist: 0
+
+I (38280) OttoEmojiDisplay: 设置聊天消息 [system]: <empty> (ignored)
+I (38280) Application: STATE: idle
+I (38280) Ws2812ControllerMCP: Idle state but streaming active - keep audio meter running
+I (38300) MQTT: Received goodbye message, session_id: eb028522
+I (38330) OttoEmojiDisplay: 设置表情: neutral
+I (38340) wifi:Set ps type: 1, coexist: 0
+
+I (38350) OttoEmojiDisplay: 设置聊天消息 [system]: <empty> (ignored)       
+I (38560) OttoEmojiDisplay: 设置音乐信息: 《稻香》播放中...
+I (38560) Esp32Music: Displaying song name: 《稻香》播放中...
+I (38560) Esp32Music: Lyrics display mode active, FFT visualization disabled
+I (38560) Esp32Music: Found ID3v2 tag, skipping 65 bytes
+I (38570) Esp32Music: Skipped ID3 tag: 65 bytes
+I (38580) Esp32Music: Attempting to set codec output sample rate to 44100 Hz
+I (38580) AudioCodec: Changing output sample rate from 24000 to 44100 Hz   
+I (38590) AudioCodec: Disabled I2S TX channel for reconfiguration
+I (38590) AudioCodec: Enabled I2S TX channel
+I (38600) AudioCodec: Successfully changed output sample rate to 44100 Hz  
+E (38940) rmt: rmt_tx_enable(775): channel not in init state
+E (38940) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (39620) rmt: rmt_tx_enable(775): channel not in init state
+E (39620) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (40220) rmt: rmt_tx_enable(775): channel not in init state
+E (40220) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (40900) rmt: rmt_tx_enable(775): channel not in init state
+E (40900) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (41340) rmt: rmt_tx_enable(775): channel not in init state
+E (41340) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (41580) rmt: rmt_tx_enable(775): channel not in init state
+E (41580) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (42020) rmt: rmt_tx_enable(775): channel not in init state
+E (42020) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (42100) rmt: rmt_tx_enable(775): channel not in init state
+E (42100) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (42700) rmt: rmt_tx_enable(775): channel not in init state
+ed
+E (43300) rmt: rmt_tx_enable(775): channel not in init state
+E (43300) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (43980) rmt: rmt_tx_enable(775): channel not in init state
+E (43980) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (44500) rmt: rmt_tx_enable(775): channel not in init state
+E (44500) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (44660) rmt: rmt_tx_enable(775): channel not in init state
+E (44660) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (45340) rmt: rmt_tx_enable(775): channel not in init state
+E (45340) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+I (45760) OttoEmojiDisplay: 设置聊天消息 [lyric]: 词：周杰伦
+E (46020) rmt: rmt_tx_enable(775): channel not in init state
+E (46020) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (46620) rmt: rmt_tx_enable(775): channel not in init state
+E (46620) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (47300) rmt: rmt_tx_enable(775): channel not in init state
+E (47300) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+I (47610) SystemInfo: free sram: 32799 minimal sram: 8627
+E (47740) rmt: rmt_tx_enable(775): channel not in init state
+E (47740) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (47980) rmt: rmt_tx_enable(775): channel not in init state
+E (47980) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed
+E (48420) rmt: rmt_tx_enable(775): channel not in init state
+E (48420) led_strip_rmt: led_strip_rmt_refresh(72): enable RMT channel failed

@@ -506,68 +506,71 @@ void Ws2812ControllerMCP::TurnOff()
 }
 
 void Ws2812ControllerMCP::OnStateChanged() {
-    auto& app = Application::GetInstance();
-    auto device_state = app.GetDeviceState();
-
-    switch (device_state) {
-        case kDeviceStateStarting: {
-            // 示例：启动时设置为呼吸灯
-            // StartEffect(EFFECT_BREATH);
-            StartScrollEffect(100); // 启动滚动灯
-            
-            break;
-        }
-        case kDeviceStateWifiConfiguring: {
-            // 闪烁表示 WiFi 配置中
-            // StartEffect(EFFECT_BREATH);
-            StartBlinkEffect(500); // 
-            break;
-        }
-        case kDeviceStateIdle: {
-            // 熄灭
-            TurnOff();
-            break;
-        }
-        case kDeviceStateConnecting: {
-            // 蓝色常亮
-            SetColor(0, 0, 255);
-            StartEffect(EFFECT_BREATH);
-            break;
-        }
-        case kDeviceStateListening: {
-            // 蓝色呼吸灯
-            // ClearLED();
-            StartEffect(EFFECT_BREATH);
-            break;
-        }
-        case kDeviceStateSpeaking: {
-            // 绿色呼吸灯
-            // StartEffect(EFFECT_BREATH);
-            // StartEffect(EFFECT_RAINBOW_FLOW);
-
-            // 音量律动
-            StartColorVolumeEffect();
-            break;
-        }
-        case kDeviceStateUpgrading: {
-            // 快速绿色闪烁
-            StartEffect(EFFECT_BREATH);
-            break;
-        }
-        case kDeviceStateActivating: {
-            // 慢速绿色闪烁
-            StartEffect(EFFECT_BREATH);
-            break;
-        }
-        default:
-            ESP_LOGW("Ws2812ControllerMCP", "未知设备状态: %d", device_state);
+        // 音乐流式播放期间，禁止任何设备状态切换灯效
+        if (streaming_active_) {
+            ESP_LOGI(TAG, "OnStateChanged: streaming_active_=true, skip state-based LED effect");
             return;
-    }
+        }
+
+        auto& app = Application::GetInstance();
+        auto device_state = app.GetDeviceState();
+
+        switch (device_state) {
+            case kDeviceStateStarting: {
+                StartScrollEffect(100); // 启动滚动灯
+                break;
+            }
+            case kDeviceStateWifiConfiguring: {
+                StartBlinkEffect(500);
+                break;
+            }
+            case kDeviceStateIdle: {
+                TurnOff();
+                break;
+            }
+            case kDeviceStateConnecting: {
+                SetColor(0, 0, 255);
+                StartEffect(EFFECT_BREATH);
+                break;
+            }
+            case kDeviceStateListening: {
+                StartEffect(EFFECT_BREATH);
+                break;
+            }
+            case kDeviceStateSpeaking: {
+                StartColorVolumeEffect();
+                break;
+            }
+            case kDeviceStateUpgrading: {
+                StartEffect(EFFECT_BREATH);
+                break;
+            }
+            case kDeviceStateActivating: {
+                StartEffect(EFFECT_BREATH);
+                break;
+            }
+            default:
+                ESP_LOGW("Ws2812ControllerMCP", "未知设备状态: %d", device_state);
+                return;
+        }
 }
 
 
 
-} // namespace ws2812
+    // 通知接口：当流式播放开始时启用音乐律动；当播放停止时关闭灯效
+    void Ws2812ControllerMCP::OnStreamingStarted() {
+        streaming_active_ = true;
+        StartColorVolumeEffect();
+        ESP_LOGI(TAG, "OnStreamingStarted: streaming_active_=true");
+    }
+
+    void Ws2812ControllerMCP::OnStreamingStopped() {
+        streaming_active_ = false;
+        TurnOff();
+        ESP_LOGI(TAG, "OnStreamingStopped: streaming_active_=false");
+    }
+
+    } // namespace ws2812
 
 // static ws2812::Ws2812ControllerMCP* g_ws2812_controller = nullptr;
 
