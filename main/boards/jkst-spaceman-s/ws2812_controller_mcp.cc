@@ -300,6 +300,18 @@ void Ws2812ControllerMCP::RegisterMcpTools() {
             return true;
         });
 
+    // 设置音量律动显示模式：0=LEFT_TO_RIGHT, 1=CENTER_OUT, 2=SIDES_IN
+    mcp_server.AddTool(
+        "self.ws2812.set_meter_mode",
+        "设置音量律动显示模式: 0=左->右, 1=中间->两侧, 2=两侧->中间",
+        PropertyList({Property("mode", kPropertyTypeInteger, 1, 0, 2)}),
+        [this](const PropertyList& properties) -> ReturnValue {
+            int mode = properties["mode"].value<int>();
+            audio_led_meter_set_mode(static_cast<AudioLedMeterMode>(mode));
+            ESP_LOGI(TAG, "设置音量律动显示模式为: %d", mode);
+            return true;
+        });
+
     mcp_server.AddTool(
         "self.ws2812.rainbow",
         "彩虹灯效",
