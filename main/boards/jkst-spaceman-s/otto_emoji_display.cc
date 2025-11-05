@@ -147,29 +147,49 @@ void OttoEmojiDisplay::ResumeAnimations() {
     }
 }
 
-void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
+// void OttoEmojiDisplay::SetChatMessage(const char* role, const char* content) {
+//     DisplayLockGuard lock(this);
+//     if (chat_message_label_ == nullptr) {
+//         return;
+//     }
+
+//     // If content==nullptr, treat as explicit hide request.
+//     if (content == nullptr) {
+//         lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+//         ESP_LOGI(TAG, "设置聊天消息 [%s]: <null> (hiding)", role);
+//         return;
+//     }
+
+//     // If content is an empty string, ignore the update to avoid flicker/temporary disappearance
+//     // (lyrics downloader or timing races may send empty updates). Keep the current text visible.
+//     if (strlen(content) == 0) {
+//         ESP_LOGI(TAG, "设置聊天消息 [%s]: <empty> (ignored)", role);
+//         return;
+//     }
+
+//     // Normal update: set text and ensure visible.
+//     lv_label_set_text(chat_message_label_, content);
+//     lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+
+//     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
+// }
+
+void OttoEmojiDisplay::SetChatMessage(const char *role, const char *content)
+{
     DisplayLockGuard lock(this);
-    if (chat_message_label_ == nullptr) {
+    if (chat_message_label_ == nullptr)
+    {
         return;
     }
 
-    // If content==nullptr, treat as explicit hide request.
-    if (content == nullptr) {
+    if (content == nullptr || strlen(content) == 0)
+    {
         lv_obj_add_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
-        ESP_LOGI(TAG, "设置聊天消息 [%s]: <null> (hiding)", role);
         return;
     }
 
-    // If content is an empty string, ignore the update to avoid flicker/temporary disappearance
-    // (lyrics downloader or timing races may send empty updates). Keep the current text visible.
-    if (strlen(content) == 0) {
-        ESP_LOGI(TAG, "设置聊天消息 [%s]: <empty> (ignored)", role);
-        return;
-    }
-
-    // Normal update: set text and ensure visible.
     lv_label_set_text(chat_message_label_, content);
-    lv_obj_clear_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(chat_message_label_, LV_OBJ_FLAG_HIDDEN);
 
     ESP_LOGI(TAG, "设置聊天消息 [%s]: %s", role, content);
 }
