@@ -8,6 +8,8 @@
 // Include board-specific display implementation for runtime casting
 #include "boards/jkst-spaceman-s/otto_emoji_display.h"
 
+#define LOG_LOCAL_LEVEL ESP_LOG_NONE
+
 #include <esp_log.h>
 #include <esp_heap_caps.h>
 #include <esp_pthread.h>

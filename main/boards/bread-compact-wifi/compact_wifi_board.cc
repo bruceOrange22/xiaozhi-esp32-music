@@ -113,12 +113,21 @@ private:
             }
             app.ToggleChatState();
         });
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
-        });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
-        });
+
+        touch_button_.OnClick([this]()
+                              {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                ResetWifiConfiguration();
+            }
+            app.ToggleChatState(); });
+            
+        // touch_button_.OnPressDown([this]() {
+        //     Application::GetInstance().StartListening();
+        // });
+        // touch_button_.OnPressUp([this]() {
+        //     Application::GetInstance().StopListening();
+        // });
 
         volume_up_button_.OnClick([this]() {
             auto codec = GetAudioCodec();

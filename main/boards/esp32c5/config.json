@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32c5",
+            "sdkconfig_append": []
+        }
+    ]
+}
